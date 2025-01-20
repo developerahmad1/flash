@@ -3,150 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fingerprint Authentication</title>
+    <title>Camera Capture</title>
     <style>
         body {
             font-family: Arial, sans-serif;
+            text-align: center;
             margin: 0;
             padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f4f8;
         }
 
         .container {
-            text-align: center;
-            background-color: #fff;
-            padding: 2em;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
         }
 
-        h2 {
-            margin-bottom: 20px;
+        video {
+            width: 100%;
+            max-width: 500px;
+            border: 1px solid #ddd;
         }
 
         button {
             background-color: #4CAF50;
             color: white;
-            border: none;
             padding: 10px 20px;
+            border: none;
             cursor: pointer;
             font-size: 16px;
-            border-radius: 5px;
+            margin: 10px;
         }
 
         button:hover {
             background-color: #45a049;
         }
 
-        #status {
-            margin-top: 20px;
-            font-weight: bold;
+        canvas {
+            display: none;
         }
     </style>
 </head>
 <body>
+    <h1>Camera Capture</h1>
     <div class="container">
-        <h2>Fingerprint Authentication</h2>
-        <button id="registerBtn">Register Fingerprint</button>
-        <button id="loginBtn" style="display:none;">Log In with Fingerprint</button>
-        <div id="status"></div>
+        <video id="videoElement" autoplay></video>
+        <br>
+        <button id="frontCameraBtn">Use Front Camera</button>
+        <button id="backCameraBtn">Use Back Camera</button>
+        <br>
+        <button id="captureImageBtn">Capture Image</button>
+        <button id="startRecordingBtn">Start Recording</button>
+        <button id="stopRecordingBtn" style="display:none;">Stop Recording</button>
+        <br>
+        <a id="downloadLink" style="display:none;" href="" download="capture.mp4">Download Video</a>
+        <a id="downloadImageLink" style="display:none;" href="" download="capture.png">Download Image</a>
     </div>
 
+    <canvas id="canvas"></canvas>
+
     <script>
-        const registerBtn = document.getElementById('registerBtn');
-        const loginBtn = document.getElementById('loginBtn');
-        const statusDiv = document.getElementById('status');
+        const videoElement = document.getElementById('videoElement');
+        const frontCameraBtn = document.getElementById('frontCameraBtn');
+        const backCameraBtn = document.getElementById('backCameraBtn');
+        const captureImageBtn = document.getElementById('captureImageBtn');
+        const startRecordingBtn = document.getElementById('startRecordingBtn');
+        const stopRecordingBtn = document.getElementById('stopRecordingBtn');
+        const downloadLink = document.getElementById('downloadLink');
+        const downloadImageLink = document.getElementById('downloadImageLink');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
 
-        // For demo purposes: store name linked to fingerprint (this should be in your backend in production)
-        let userData = null;
+        let mediaStream;
+        let mediaRecorder;
+        let recordedChunks = [];
 
-        // Register Fingerprint
-        registerBtn.addEventListener('click', async () => {
-            statusDiv.textContent = 'Please scan your fingerprint...';
-
+        // Function to initialize the camera
+        async function startCamera(constraints) {
             try {
-                // Request WebAuthn fingerprint registration
-                const publicKeyCredentialCreationOptions = await getCredentialCreationOptions();
-                const credential = await navigator.credentials.create({
-                    publicKey: publicKeyCredentialCreationOptions
-                });
-
-                // Save fingerprint (simulated with user name) on the server
-                // In reality, this should be sent to the server to associate with the user
-                const name = prompt('Enter your name to associate with the fingerprint:');
-                userData = { name: name, credential: credential };
-
-                statusDiv.textContent = `Registration successful! Welcome, ${name}.`;
-
-                // Switch to login after registration
-                registerBtn.style.display = 'none';
-                loginBtn.style.display = 'inline-block';
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = mediaStream;
             } catch (err) {
-                statusDiv.textContent = 'Fingerprint registration failed. Please try again.';
-                console.error(err);
+                alert("Error accessing camera: " + err);
             }
-        });
-
-        // Log in with Fingerprint
-        loginBtn.addEventListener('click', async () => {
-            statusDiv.textContent = 'Please scan your fingerprint to log in...';
-
-            try {
-                // Request WebAuthn fingerprint authentication
-                const publicKeyCredentialRequestOptions = await getCredentialRequestOptions();
-                const credential = await navigator.credentials.get({
-                    publicKey: publicKeyCredentialRequestOptions
-                });
-
-                // Simulate authentication
-                if (userData && userData.credential.id === credential.id) {
-                    statusDiv.textContent = `Hello, ${userData.name}! Authentication successful.`;
-                } else {
-                    statusDiv.textContent = 'Fingerprint not recognized.';
-                }
-            } catch (err) {
-                statusDiv.textContent = 'Fingerprint authentication failed. Please try again.';
-                console.error(err);
-            }
-        });
-
-        // Simulated function to get the registration options (to be replaced with server-side handling)
-        async function getCredentialCreationOptions() {
-            return {
-                challenge: new TextEncoder().encode("random-challenge"),
-                rp: { name: "Fingerprint Auth" },
-                user: {
-                    id: new TextEncoder().encode("user-id"),
-                    name: "user@example.com",
-                    displayName: "User Name"
-                },
-                pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-                authenticatorSelection: {
-                    authenticatorAttachment: "platform",
-                    requireResidentKey: false,
-                    userVerification: "required"
-                },
-                timeout: 60000,
-                attestation: "direct"
-            };
         }
 
-        // Simulated function to get authentication options (to be replaced with server-side handling)
-        async function getCredentialRequestOptions() {
-            return {
-                challenge: new TextEncoder().encode("random-challenge-for-authentication"),
-                allowCredentials: [{
-                    id: userData?.credential?.id,
-                    type: "public-key"
-                }],
-                userVerification: "required",
-                timeout: 60000
+        // Switch to front camera
+        frontCameraBtn.addEventListener('click', () => {
+            startCamera({ video: { facingMode: 'user' } });
+        });
+
+        // Switch to back camera
+        backCameraBtn.addEventListener('click', () => {
+            startCamera({ video: { facingMode: 'environment' } });
+        });
+
+        // Capture image from video stream
+        captureImageBtn.addEventListener('click', () => {
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            const imageDataUrl = canvas.toDataURL('image/png');
+            downloadImageLink.href = imageDataUrl;
+            downloadImageLink.style.display = 'inline';
+        });
+
+        // Start recording video
+        startRecordingBtn.addEventListener('click', () => {
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(mediaStream);
+            mediaRecorder.ondataavailable = event => recordedChunks.push(event.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+                const videoUrl = URL.createObjectURL(blob);
+                downloadLink.href = videoUrl;
+                downloadLink.style.display = 'inline';
             };
-        }
+            mediaRecorder.start();
+            startRecordingBtn.style.display = 'none';
+            stopRecordingBtn.style.display = 'inline';
+        });
+
+        // Stop recording video
+        stopRecordingBtn.addEventListener('click', () => {
+            mediaRecorder.stop();
+            startRecordingBtn.style.display = 'inline';
+            stopRecordingBtn.style.display = 'none';
+        });
     </script>
 </body>
 </html>
