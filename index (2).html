@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashlight Control</title>
+</head>
+<body>
+    <button id="toggleFlashlight">Toggle Flashlight</button>
+
+    <script>
+        let flashlightOn = false;
+        let stream = null;
+        let track = null;
+
+        async function toggleFlashlight() {
+            if (flashlightOn) {
+                // Turn off the flashlight
+                if (track) {
+                    track.stop();
+                }
+                flashlightOn = false;
+                document.getElementById('toggleFlashlight').textContent = 'Turn On Flashlight';
+            } else {
+                // Turn on the flashlight
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'environment'
+                        }
+                    });
+                    track = stream.getVideoTracks()[0];
+                    const capabilities = track.getCapabilities();
+                    if (capabilities.torch) {
+                        track.applyConstraints({ advanced: [{ torch: true }] });
+                        flashlightOn = true;
+                        document.getElementById('toggleFlashlight').textContent = 'Turn Off Flashlight';
+                    } else {
+                        alert('Flashlight is not available on this device.');
+                    }
+                } catch (err) {
+                    console.error('Error accessing the camera:', err);
+                    alert('Could not access the camera.');
+                }
+            }
+        }
+
+        document.getElementById('toggleFlashlight').addEventListener('click', toggleFlashlight);
+    </script>
+</body>
+</html>
